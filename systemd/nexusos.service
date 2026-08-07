@@ -1,0 +1,20 @@
+[Unit]
+Description=NEXUS OS Core panel and KVM control plane
+Documentation=file:/opt/nexusos/README.md
+Wants=network-online.target
+After=network-online.target
+After=libvirtd.service virtqemud.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/nexusos/nexusos.env
+WorkingDirectory=__PREFIX__/app
+ExecStart=__PREFIX__/venv/bin/python __PREFIX__/app/server.py
+Restart=always
+RestartSec=3
+User=root
+UMask=0022
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

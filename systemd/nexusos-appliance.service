@@ -1,0 +1,46 @@
+[Unit]
+Description=NEXUS OS Bare-Metal Appliance Kiosk (cage + Chromium)
+Documentation=file:/opt/nexusos/README.md
+Wants=nexusos.service seatd.service systemd-user-sessions.service
+After=systemd-logind.service systemd-user-sessions.service nexusos.service seatd.service
+Conflicts=getty@tty1.service display-manager.service
+After=getty@tty1.service display-manager.service
+
+[Service]
+Type=simple
+User=__KIOSK_USER__
+PAMName=login
+UtmpIdentifier=tty1
+UtmpMode=user
+WorkingDirectory=__PREFIX__
+EnvironmentFile=-/etc/nexusos/nexusos.env
+EnvironmentFile=-/etc/nexusos/kiosk.env
+Environment=XDG_RUNTIME_DIR=/run/user/__KIOSK_UID__
+Environment=XDG_SEAT=seat0
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_CURRENT_DESKTOP=NEXUS
+Environment=WLR_BACKENDS=drm
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+ExecStartPre=+/bin/sh -c 'install -d -m 0700 /run/user/__KIOSK_UID__ && chown __KIOSK_USER__: /run/user/__KIOSK_UID__'
+ExecStart=__PREFIX__/bin/nexusos-kiosk.sh
+Restart=always
+RestartSec=2
+StartLimitIntervalSec=60
+StartLimitBurst=20
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

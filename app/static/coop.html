@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS CO-OP</title>
+  <style>
+    :root{--cyan:#00f6ff;--warn:#ffb000;--crit:#ff3355;--bg:#020303}
+    *{box-sizing:border-box}
+    body{margin:0;background:#000;color:#d8faff;font-family:Consolas,monospace;overflow:hidden}
+    .topbar{height:58px;display:flex;gap:8px;align-items:center;padding:8px 10px;background:#020303;border-bottom:1px solid #244}
+    .brand{min-width:210px;color:#fff;font-weight:bold}
+    .brand small{display:block;color:#888;font-weight:normal;font-size:10px;margin-top:2px}
+    button,input{background:#070707;border:1px solid #333;color:#ddd;font:12px Consolas,monospace;padding:10px;border-radius:5px}
+    button{cursor:pointer;color:var(--cyan);border-color:#066}
+    button.warn{color:var(--warn);border-color:#6b4500}
+    button.crit{color:var(--crit);border-color:#602}
+    #status{margin-left:auto;color:#888;font-size:11px;white-space:nowrap}
+    #stage{position:fixed;left:0;right:0;top:58px;bottom:0;background:#050505;display:grid;place-items:center}
+    #console-wrap{position:relative;width:100%;height:100%;background:#000;overflow:hidden}
+    #screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+    #cursor-layer{position:absolute;inset:0;pointer-events:none;z-index:5}
+    .peer-cursor{position:absolute;width:14px;height:14px;border:2px solid currentColor;border-radius:50%;box-shadow:0 0 14px currentColor;transform:translate(-2px,-2px)}
+    .peer-cursor:after{content:attr(data-peer);position:absolute;left:13px;top:10px;background:#020303;border:1px solid currentColor;color:currentColor;padding:2px 4px;font-size:10px;white-space:nowrap}
+    #overlay{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at center,rgba(0,246,255,.08),rgba(0,0,0,.92));z-index:10;text-align:center;padding:20px}
+    #overlay.hidden{display:none}
+    .panel{max-width:680px;border:1px solid #244;background:rgba(2,5,6,.94);padding:18px;border-radius:8px;box-shadow:0 0 32px rgba(0,246,255,.16)}
+    .panel h1{margin:0 0 12px;color:var(--cyan);font-size:20px}
+    .panel p{color:#aaa;line-height:1.5;font-size:12px}
+    @media(max-width:720px){
+      .topbar{height:auto;min-height:58px;flex-wrap:wrap}
+      #stage{top:104px}
+      .brand{min-width:100%;font-size:12px}
+      button,input{flex:1 1 calc(50% - 8px);padding:9px 7px;font-size:10px}
+      #status{margin-left:0;width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">NEXUS CO-OP<small id="session-label">link session</small></div>
+    <input id="password" placeholder="VNC password opcj." autocomplete="off">
+    <button onclick="connectConsole()">POLACZ</button>
+    <button onclick="toggleMouse()">MYSZ ON/OFF</button>
+    <button onclick="sendCad()">CTRL+ALT+DEL</button>
+    <button onclick="toggleFit()">FIT</button>
+    <button onclick="goFullscreen()">FULL</button>
+    <button class="warn" onclick="reconnectConsole()">RESET VIEW</button>
+    <span id="status">INIT</span>
+  </div>
+  <div id="stage">
+    <div id="console-wrap">
+      <div id="screen"></div>
+      <div id="cursor-layer"></div>
+      <div id="overlay">
+        <div class="panel">
+          <h1>NEXUS CO-OP SESSION</h1>
+          <p>Wspoldzielony podglad VM przez noVNC. Dla roli VIEW ONLY wejscie myszy i klawiatury jest blokowane.</p>
+          <button onclick="connectConsole()">START SESSION</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import RFB from "https://esm.sh/@novnc/novnc@1.5.0/lib/rfb.js";
+
+    const qs = id => document.getElementById(id);
+    const ticket = new URLSearchParams(location.search).get("ticket") || "";
+    const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
+    const peerId = "peer-" + Math.random().toString(16).slice(2, 8);
+    const colors = ["#00f6ff", "#4dff88", "#ffb000", "#ff4df0", "#5d7cff"];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    let rfb = null;
+    let session = null;
+    let cursorSocket = null;
+    let mouseEnabled = true;
+    let fitEnabled = true;
+    const remoteCursors = new Map();
+
+    function setStatus(text) { qs("status").textContent = text; }
+    function socketUrl(path) { return `${wsProto}//${location.host}${path}`; }
+
+    async function loadSession() {
+      if (!ticket) throw new Error("Brak ticket w URL");
+      const res = await fetch(`/api/coop/session/${encodeURIComponent(ticket)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Sesja CO-OP niedostepna");
+      session = data;
+      qs("session-label").textContent = `${data.vm_id} / ${data.role} / exp ${data.expires_at || "-"}`;
+      return data;
+    }
+
+    function connectCursorBus() {
+      if (cursorSocket) cursorSocket.close();
+      cursorSocket = new WebSocket(socketUrl(`/ws/coop/${encodeURIComponent(ticket)}`));
+      cursorSocket.onmessage = event => {
+        let msg = null;
+        try { msg = JSON.parse(event.data); } catch (_) { return; }
+        if (!msg || msg.peer === peerId || msg.type !== "cursor") return;
+        renderPeerCursor(msg);
+      };
+      const wrap = qs("console-wrap");
+      wrap.onpointermove = event => {
+        if (!cursorSocket || cursorSocket.readyState !== WebSocket.OPEN) return;
+        const rect = wrap.getBoundingClientRect();
+        cursorSocket.send(JSON.stringify({
+          type: "cursor",
+          peer: peerId,
+          color,
+          x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+          y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
+        }));
+      };
+    }
+
+    function renderPeerCursor(msg) {
+      const layer = qs("cursor-layer");
+      let dot = remoteCursors.get(msg.peer);
+      if (!dot) {
+        dot = document.createElement("div");
+        dot.className = "peer-cursor";
+        dot.dataset.peer = msg.peer;
+        layer.appendChild(dot);
+        remoteCursors.set(msg.peer, dot);
+      }
+      dot.style.color = msg.color || "#00f6ff";
+      dot.style.left = `${Number(msg.x || 0) * 100}%`;
+      dot.style.top = `${Number(msg.y || 0) * 100}%`;
+      dot.dataset.peer = msg.peer;
+    }
+
+    window.connectConsole = async function () {
+      try {
+        setStatus("AUTH...");
+        await loadSession();
+        setStatus("VNC TICKET...");
+        const res = await fetch(`/api/coop/console?ticket=${encodeURIComponent(ticket)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Nie utworzono konsoli");
+        const screen = qs("screen");
+        screen.innerHTML = "";
+        rfb = new RFB(screen, socketUrl(data.ws_path), { credentials: { password: qs("password").value || "" } });
+        rfb.scaleViewport = fitEnabled;
+        rfb.resizeSession = false;
+        rfb.viewOnly = data.role === "view" || !mouseEnabled;
+        rfb.addEventListener("connect", () => setStatus(`ONLINE / ${data.vm_id} / ${data.role}`));
+        rfb.addEventListener("disconnect", e => setStatus(e.detail.clean ? "DISCONNECTED" : "LOST"));
+        rfb.addEventListener("credentialsrequired", () => setStatus("POTRZEBNE HASLO VNC"));
+        qs("overlay").classList.add("hidden");
+        connectCursorBus();
+      } catch (e) {
+        setStatus("ERROR");
+        qs("overlay").classList.remove("hidden");
+        qs("overlay").querySelector("p").textContent = e.message || "Blad CO-OP";
+      }
+    };
+
+    window.reconnectConsole = function () {
+      if (rfb) rfb.disconnect();
+      setTimeout(() => window.connectConsole(), 500);
+    };
+    window.toggleMouse = function () {
+      mouseEnabled = !mouseEnabled;
+      if (rfb) rfb.viewOnly = session?.role === "view" || !mouseEnabled;
+      setStatus(mouseEnabled ? "MOUSE INPUT ON" : "MOUSE INPUT OFF");
+    };
+    window.sendCad = function () { if (rfb && !rfb.viewOnly) rfb.sendCtrlAltDel(); };
+    window.toggleFit = function () { fitEnabled = !fitEnabled; if (rfb) rfb.scaleViewport = fitEnabled; setStatus(fitEnabled ? "FIT ON" : "FIT OFF"); };
+    window.goFullscreen = function () { qs("console-wrap").requestFullscreen?.(); };
+
+    loadSession().then(() => setStatus("READY")).catch(e => { setStatus("ERROR"); qs("overlay").querySelector("p").textContent = e.message; });
+  </script>
+</body>
+</html>

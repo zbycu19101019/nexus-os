@@ -1,0 +1,63 @@
+﻿<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS Downloads</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:#1d1d1f; }
+    body {
+      margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; box-sizing:border-box;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(180,226,255,.72), transparent 32%),
+        radial-gradient(circle at 78% 80%, rgba(214,246,255,.8), transparent 30%),
+        linear-gradient(135deg,#f5f5f7,#fbfdff);
+    }
+    .card {
+      width:min(920px,100%); border:1px solid rgba(255,255,255,.65); border-top-color:#fff;
+      border-radius:32px; padding:34px; background:rgba(255,255,255,.64);
+      box-shadow:0 24px 70px rgba(72,98,132,.16); backdrop-filter:blur(40px) saturate(1.35);
+    }
+    .kicker { margin:0 0 12px; color:#86868b; font-size:12px; font-weight:900; letter-spacing:.22em; text-transform:uppercase; }
+    h1 { margin:0; font-size:clamp(38px,7vw,82px); line-height:.92; letter-spacing:-.07em; }
+    p { color:#68717b; line-height:1.65; max-width:760px; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }
+    a {
+      display:inline-flex; align-items:center; justify-content:center; min-height:48px; padding:0 20px;
+      border-radius:999px; background:#1d1d1f; color:white; text-decoration:none; font-weight:900;
+      box-shadow:0 18px 34px rgba(29,29,31,.16);
+    }
+    a.secondary { background:rgba(255,255,255,.72); color:#1d1d1f; box-shadow:inset 0 1px 0 rgba(255,255,255,.8); }
+    .meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:26px; }
+    .tile { border-radius:20px; background:rgba(255,255,255,.5); padding:16px; color:#86868b; font-size:12px; }
+    .tile strong { display:block; color:#1d1d1f; font-size:18px; margin-bottom:4px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="kicker">NEXUS CORE / Windows Client</p>
+    <h1>Capsule Manager 0.2.11</h1>
+    <p>Instalator aplikacji Windows do plikow .nexus, logowania IAM, sterowania wlasnymi VM, zakladek AERO, Mission Control, Zero-Trust, Edge, Neural, live pulse i bezpiecznego auto-update z weryfikacja hashy SHA-256.</p>
+    <div class="actions">
+      <a href="NEXUS-Capsule-Manager-Setup.exe?v=0.2.11">Pobierz instalator EXE</a>
+      <a class="secondary" href="NEXUS-Capsule-Manager.msi?v=0.2.11">Pobierz MSI</a>
+      <a class="secondary" href="latest.json">Manifest auto-update</a>
+      <a class="secondary" href="/static/aero.html?module=desktop">Otworz w AERO</a>
+    </div>
+    <section class="meta">
+      <div class="tile"><strong>Windows x64</strong>NSIS setup + MSI</div>
+      <div class="tile"><strong>VM Live View</strong>Lista wlasnych VM, POWER ON, ACPI, reboot i obraz noVNC w programie</div>
+      <div class="tile"><strong>Auth-Gate</strong>Login przez natywny most Rust, bez problemu CORS/Failed to fetch</div>
+      <div class="tile"><strong>Program Deck</strong>Wszystkie zakladki AERO dzialaja w oknie aplikacji plus szybkie akcje API</div>
+      <div class="tile"><strong>Live Pulse</strong>Ruchome paski CPU/RAM/dysku, oddech statusu i kurs tokena VM</div>
+      <div class="tile"><strong>Layout 0.2.5</strong>Czystsze okna, boczny panel akcji i stabilniejszy uklad na mniejszych ekranach</div>
+      <div class="tile"><strong>NextGen 0.2.6</strong>KSM, token burn, private ledger, readiness cards i particle traffic</div>
+      <div class="tile"><strong>Workbench 0.2.7</strong>Czystsze logowanie, dwukolumnowy kokpit i rowniejszy rytm paneli</div>
+      <div class="tile"><strong>VM Truth 0.2.10</strong>AERO i Manager pokazuja tylko realne VM z virsh, bez demo Windows/Ubuntu/Vista</div>
+      <div class="tile"><strong>Mission Control 0.2.11</strong>Phase 2, Zero-Trust, Edge, Neural, Tenant/Confirm i natywne quick ops w Managerze</div>
+      <div class="tile"><strong>Auto-update</strong>EXE/MSI rozdzielone i sprawdzane SHA-256 przed instalacja</div>
+    </section>
+  </main>
+</body>
+</html>
+

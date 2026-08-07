@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS VAULT</title>
+  <style>
+    :root{--cyan:#00f6ff;--crit:#ff3355;--warn:#ffb000}
+    body{margin:0;min-height:100vh;background:#020303;color:#d8faff;font-family:Consolas,monospace;display:grid;place-items:center;padding:20px}
+    .panel{width:min(760px,100%);border:1px solid #244;border-left:4px solid var(--crit);background:#060707;padding:18px;border-radius:8px;box-shadow:0 0 38px rgba(255,51,85,.12)}
+    h1{margin:0 0 12px;color:var(--crit);font-size:22px}
+    p{color:#aaa;font-size:12px;line-height:1.55}
+    button{background:#070707;border:1px solid var(--crit);color:var(--crit);font:12px Consolas,monospace;padding:11px 14px;border-radius:5px;cursor:pointer}
+    #log{white-space:pre-wrap;background:#030303;border:1px solid #222;border-radius:6px;color:#aaa;font-size:11px;padding:10px;min-height:120px;margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>NEXUS SECURE VAULT</h1>
+    <p>Ten link moze byc jednorazowy. Klucz po znaku # zostaje tylko w przegladarce i nie jest wysylany do serwera.</p>
+    <button onclick="openVault()">ODSZYFRUJ / POBIERZ</button>
+    <div id="log">READY</div>
+  </div>
+  <script>
+    const log = msg => document.getElementById("log").textContent += "\n" + msg;
+    function b64ToBytes(value) {
+      const normalized = (value || "").replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+      return Uint8Array.from(atob(padded), ch => ch.charCodeAt(0));
+    }
+    async function openVault() {
+      try {
+        const id = new URLSearchParams(location.search).get("id");
+        const keyText = location.hash.slice(1);
+        if (!id) throw new Error("Brak ID vault w URL.");
+        log("Pobieram zaszyfrowany obiekt...");
+        const res = await fetch(`/vault/raw/${encodeURIComponent(id)}`);
+        if (!res.ok) throw new Error(`Serwer odrzucil link: HTTP ${res.status}`);
+        const encrypted = new Uint8Array(await res.arrayBuffer());
+        if (!keyText) {
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(new Blob([encrypted], { type: "application/octet-stream" }));
+          a.download = "nexus-vault.bin";
+          a.click();
+          log("Pobrano surowy plik. Brak klucza po #, wiec nie odszyfrowalem.");
+          return;
+        }
+        if (encrypted.length < 13) throw new Error("Plik jest za maly na AES-GCM.");
+        const iv = encrypted.slice(0, 12);
+        const payload = encrypted.slice(12);
+        const rawKey = b64ToBytes(keyText);
+        const key = await crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, false, ["decrypt"]);
+        log("Odszyfrowuje lokalnie w przegladarce...");
+        const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, payload);
+        const blob = new Blob([plain], { type: "application/octet-stream" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "nexus-vault-decrypted.bin";
+        a.click();
+        log("Gotowe. Jezeli link byl jednorazowy, plik po stronie serwera zostal oznaczony do zniszczenia.");
+      } catch (e) {
+        log("ERROR: " + (e.message || e));
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS: Lustrzany Protokol</title>
+  <style>
+    :root {
+      --bg: #070202;
+      --panel: #120505;
+      --panel-2: #1b0808;
+      --line: #5f1515;
+      --line-hot: #ff3535;
+      --red: #ff2d2d;
+      --amber: #ffb23d;
+      --cyan: #31f7ff;
+      --green: #4dff80;
+      --text: #f4e7e7;
+      --muted: #b38c8c;
+      --shadow: rgba(255, 36, 36, 0.26);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(255, 32, 32, 0.16), transparent 32rem),
+        radial-gradient(circle at 80% 20%, rgba(49, 247, 255, 0.08), transparent 24rem),
+        linear-gradient(135deg, #040101, var(--bg) 48%, #110202);
+      color: var(--text);
+      font-family: "Consolas", "Courier New", monospace;
+      overflow-x: hidden;
+    }
+
+    body:before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.045) 0,
+        rgba(255, 255, 255, 0.045) 1px,
+        transparent 2px,
+        transparent 5px
+      );
+      mix-blend-mode: screen;
+      opacity: 0.24;
+    }
+
+    body:after {
+      content: "";
+      position: fixed;
+      inset: -30%;
+      pointer-events: none;
+      z-index: 7;
+      background:
+        linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.08), transparent),
+        linear-gradient(180deg, transparent 48%, rgba(255, 255, 255, 0.08) 49%, transparent 50%);
+      animation: drift 7s linear infinite;
+      opacity: 0.32;
+    }
+
+    @keyframes drift {
+      from { transform: translate3d(-4%, -4%, 0); }
+      to { transform: translate3d(4%, 4%, 0); }
+    }
+
+    .shell {
+      width: min(1480px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0 28px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+      gap: 12px;
+      align-items: stretch;
+      margin-bottom: 12px;
+    }
+
+    .brand, .timer, .status-card, .card {
+      background: linear-gradient(180deg, rgba(31, 8, 8, 0.96), rgba(8, 2, 2, 0.95));
+      border: 1px solid var(--line);
+      box-shadow: 0 0 24px var(--shadow), inset 0 0 18px rgba(255, 45, 45, 0.05);
+    }
+
+    .brand {
+      padding: 14px 16px;
+      min-height: 86px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      color: #fff;
+      font-size: clamp(20px, 3vw, 38px);
+      line-height: 1;
+      letter-spacing: 0;
+      text-shadow: 0 0 16px rgba(255, 45, 45, 0.7);
+    }
+
+    .brand .sub {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .timer {
+      min-width: 260px;
+      display: grid;
+      place-items: center;
+      padding: 12px 18px;
+      text-align: center;
+      border-color: var(--line-hot);
+    }
+
+    .timer .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .timer .clock {
+      color: var(--red);
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1;
+      font-weight: 900;
+      text-shadow: 0 0 18px rgba(255, 45, 45, 0.9);
+    }
+
+    .status-card {
+      padding: 12px;
+      display: grid;
+      align-content: center;
+      gap: 9px;
+      min-height: 86px;
+    }
+
+    .meter {
+      display: grid;
+      grid-template-columns: 64px 1fr 44px;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .bar {
+      height: 9px;
+      border: 1px solid #411010;
+      background: #080202;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 10%;
+      background: linear-gradient(90deg, var(--red), var(--amber));
+      box-shadow: 0 0 14px rgba(255, 45, 45, 0.8);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr 320px;
+      gap: 12px;
+      min-height: calc(100vh - 138px);
+    }
+
+    .nav, .side, .main {
+      background: rgba(9, 2, 2, 0.78);
+      border: 1px solid var(--line);
+      box-shadow: 0 0 20px rgba(255, 45, 45, 0.11);
+    }
+
+    .nav {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    button {
+      font: inherit;
+      color: var(--text);
+      background: #150505;
+      border: 1px solid #672020;
+      min-height: 40px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--line-hot);
+      color: #fff;
+      box-shadow: 0 0 14px rgba(255, 45, 45, 0.26);
+    }
+
+    button:disabled {
+      opacity: 0.48;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .nav button {
+      text-align: left;
+      padding: 10px 12px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .nav button.active {
+      color: #fff;
+      border-color: var(--red);
+      background: linear-gradient(90deg, rgba(255, 45, 45, 0.22), rgba(18, 5, 5, 0.9));
+    }
+
+    .main {
+      min-width: 0;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .main:before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 45, 45, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 45, 45, 0.06) 1px, transparent 1px);
+      background-size: 34px 34px;
+      opacity: 0.28;
+      pointer-events: none;
+    }
+
+    .screen {
+      position: relative;
+      z-index: 1;
+    }
+
+    .screen h2 {
+      margin: 0 0 12px;
+      font-size: clamp(20px, 3vw, 34px);
+      line-height: 1;
+      color: #fff;
+      text-transform: uppercase;
+      text-shadow: 0 0 18px rgba(255, 45, 45, 0.5);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      padding: 13px;
+      min-height: 116px;
+    }
+
+    .card .k {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .card .v {
+      margin-top: 8px;
+      color: #fff;
+      font-size: 28px;
+      font-weight: 900;
+      word-break: break-word;
+    }
+
+    .card .hint {
+      margin-top: 8px;
+      color: var(--amber);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .logbox, .term, .list {
+      border: 1px solid #451313;
+      background: rgba(5, 1, 1, 0.82);
+      padding: 12px;
+    }
+
+    .logbox {
+      max-height: 520px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .line {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 45, 45, 0.09);
+      color: #dfc9c9;
+    }
+
+    .line b { color: var(--red); }
+    .ok { color: var(--green); }
+    .warn { color: var(--amber); }
+    .hot { color: var(--red); }
+    .cyan { color: var(--cyan); }
+
+    .side {
+      padding: 12px;
+      overflow: hidden;
+    }
+
+    .side h3 {
+      margin: 0 0 10px;
+      color: #fff;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+
+    .objective {
+      border: 1px solid #3c1212;
+      background: #100404;
+      padding: 10px;
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .objective.done {
+      border-color: #236b37;
+      color: #d7ffe0;
+      background: rgba(26, 94, 45, 0.14);
+    }
+
+    .terminal-output {
+      min-height: 260px;
+      max-height: 430px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #e8d8d8;
+    }
+
+    .terminal-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 40px;
+      color: #fff;
+      background: #080202;
+      border: 1px solid #5f1515;
+      padding: 9px 10px;
+      font: inherit;
+    }
+
+    .file-row, .proc-row, .backup-row, .chat-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 45, 45, 0.12);
+    }
+
+    .file-row:last-child, .proc-row:last-child, .backup-row:last-child, .chat-row:last-child { border-bottom: 0; }
+
+    .mini {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .modal, .intro, .crt {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.82);
+      padding: 18px;
+    }
+
+    .modal[hidden], .intro[hidden], .crt[hidden] { display: none; }
+
+    .dialog {
+      width: min(680px, 100%);
+      border: 1px solid var(--line-hot);
+      background: linear-gradient(180deg, #180707, #060101);
+      padding: 20px;
+      box-shadow: 0 0 40px rgba(255, 45, 45, 0.35);
+    }
+
+    .dialog h2 {
+      margin: 0 0 12px;
+      color: #fff;
+      font-size: 26px;
+      text-transform: uppercase;
+    }
+
+    .dialog p {
+      color: #d8bebe;
+      line-height: 1.5;
+    }
+
+    .dialog-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .primary {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .toast {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      z-index: 30;
+      max-width: min(520px, calc(100vw - 36px));
+      border: 1px solid var(--line-hot);
+      background: #120505;
+      color: #fff;
+      padding: 12px 14px;
+      box-shadow: 0 0 26px rgba(255, 45, 45, 0.34);
+      transform: translateY(120%);
+      transition: transform 180ms ease;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .toast.show { transform: translateY(0); }
+
+    .mirror-audio-toggle {
+      position: fixed;
+      right: 18px;
+      top: 18px;
+      z-index: 31;
+      min-width: 96px;
+      min-height: 36px;
+      border-color: var(--line-hot);
+      color: var(--red);
+      background: rgba(10, 1, 1, 0.94);
+      box-shadow: 0 0 18px rgba(255, 45, 45, 0.25);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .mirror-audio-toggle.off {
+      border-color: #4d3030;
+      color: #8a6060;
+      box-shadow: none;
+    }
+
+    .crt {
+      color: #fff;
+      text-align: center;
+      background: #000;
+      animation: shut 1.7s ease forwards;
+    }
+
+    .crt h2 {
+      color: var(--green);
+      font-size: clamp(28px, 6vw, 76px);
+      text-shadow: 0 0 24px rgba(77, 255, 128, 0.8);
+    }
+
+    @keyframes shut {
+      0% { clip-path: inset(0 0 0 0); }
+      78% { clip-path: inset(43% 0 43% 0); }
+      100% { clip-path: inset(50% 0 50% 0); }
+    }
+
+    .glitch {
+      animation: glitch 1.2s steps(2) infinite;
+    }
+
+    @keyframes glitch {
+      0%, 100% { transform: translate(0, 0); filter: none; }
+      20% { transform: translate(-1px, 1px); filter: hue-rotate(18deg); }
+      40% { transform: translate(2px, -1px); filter: saturate(1.7); }
+      70% { transform: translate(-2px, 0); filter: contrast(1.35); }
+    }
+
+    .matrix {
+      width: 100%;
+      height: 170px;
+      background:
+        linear-gradient(180deg, rgba(255, 45, 45, 0.12), transparent),
+        repeating-linear-gradient(90deg, rgba(255, 45, 45, 0.12) 0, rgba(255, 45, 45, 0.12) 1px, transparent 1px, transparent 18px);
+      border: 1px solid #451313;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .matrix:before {
+      content: "01001110 01000101 01011000 01010101 01010011 00110010 00110100";
+      position: absolute;
+      inset: 20px;
+      color: rgba(255, 45, 45, 0.7);
+      font-size: 18px;
+      line-height: 2;
+      word-break: break-word;
+      animation: drift 4s linear infinite alternate;
+    }
+
+    @media (max-width: 1050px) {
+      .topbar, .layout { grid-template-columns: 1fr; }
+      .timer { min-width: 0; }
+      .nav { flex-direction: row; overflow-x: auto; }
+      .nav button { min-width: 150px; }
+      .side { order: -1; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 16px, 1480px); padding-top: 8px; }
+      .file-row, .proc-row, .backup-row, .chat-row, .terminal-row { grid-template-columns: 1fr; }
+      .brand, .timer, .status-card, .main, .side, .nav { padding: 10px; }
+      .card .v { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <button id="mirror-audio-toggle" class="mirror-audio-toggle" type="button" onclick="MirrorAudio.toggle()">AUDIO ON</button>
+  <div class="shell">
+    <header class="topbar">
+      <section class="brand glitch">
+        <h1>NEXUS: LUSTRZANY PROTOKOL</h1>
+        <div class="sub">PHANTOM quarantine node / zero backend / browser cage</div>
+      </section>
+      <section class="timer">
+        <div class="label">Czas do przejecia wezla</div>
+        <div class="clock" id="clock">15:00</div>
+      </section>
+      <section class="status-card">
+        <div class="meter"><span>CPU</span><div class="bar"><span id="cpu-bar"></span></div><b id="cpu-val">41%</b></div>
+        <div class="meter"><span>RAM</span><div class="bar"><span id="ram-bar"></span></div><b id="ram-val">38%</b></div>
+        <div class="meter"><span>PHANTOM</span><div class="bar"><span id="phantom-bar"></span></div><b id="phantom-val">12%</b></div>
+      </section>
+    </header>
+
+    <main class="layout">
+      <nav class="nav" id="nav"></nav>
+      <section class="main">
+        <div class="screen" id="screen"></div>
+      </section>
+      <aside class="side">
+        <h3>Sciezka ucieczki</h3>
+        <div class="objective" id="obj-nex">1. Odnajdz pierwsza czesc override w pogodzie.</div>
+        <div class="objective" id="obj-us">2. Odzyskaj druga czesc z pliku phantom.dump.</div>
+        <div class="objective" id="obj-kill">3. Zatrzymaj proces PHANTOM_CORE kodem override.</div>
+        <div class="objective" id="obj-restore">4. Przywroc czysty backup i wroc do prawdziwego panelu.</div>
+        <h3>Ostatnie alarmy</h3>
+        <div class="logbox" id="mini-log"></div>
+      </aside>
+    </main>
+  </div>
+
+  <section class="intro" id="intro">
+    <div class="dialog">
+      <h2>Przechwycono sesje</h2>
+      <p>Wir PHANTOM zamknal Cie w lustrzanym panelu. Wyglada jak NEXUS, ale nic tutaj nie dotyka prawdziwego serwera. Masz 15 minut, zeby znalezc kod override, zabic proces rdzeniowy i uruchomic czysty backup.</p>
+      <p class="warn">Podpowiedz startowa: override jest podzielony na dwie czesci. Jedna siedzi w pogodzie, druga w archiwum kwarantanny.</p>
+      <div class="dialog-actions">
+        <button class="primary" onclick="startGame()">WEJDZ DO KWARANTANNY</button>
+        <button onclick="window.location.href='/'">WRACAJ DO PANELU</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="modal" id="kill-modal" hidden>
+    <div class="dialog">
+      <h2>PHANTOM_CORE wymaga kodu</h2>
+      <p>PID 666 nie przyjmie zwyklego kill -9. Wpisz override zlozony z dwoch znalezionych fragmentow.</p>
+      <input id="override-input" placeholder="KOD OVERRIDE">
+      <div class="dialog-actions">
+        <button class="danger" onclick="confirmKill()">WYKONAJ KILL</button>
+        <button onclick="closeKill()">ANULUJ</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="crt" id="crt" hidden>
+    <div>
+      <h2>RESTORE OK</h2>
+      <p>Wyjscie z lustra. Przelaczam na prawdziwy panel...</p>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    "use strict";
+
+    const tabs = [
+      ["dash", "DASH"],
+      ["logs", "LOGI"],
+      ["chat", "CZAT"],
+      ["weather", "POGODA"],
+      ["files", "PLIKI"],
+      ["terminal", "TERMINAL"],
+      ["processes", "PROCESY"],
+      ["admin", "ADMIN"]
+    ];
+
+    const state = {
+      panel: "dash",
+      started: false,
+      timeLeft: 15 * 60,
+      cpu: 41,
+      ram: 38,
+      phantom: 12,
+      foundNex: false,
+      foundUs: false,
+      phantomKilled: false,
+      restored: false,
+      terminal: [
+        "mirror@quarantine:~$ help",
+        "Dostepne: help, ls, cat /var/log/phantom.dump, hex 4E 45 58, decode VVMyNA==, clear"
+      ],
+      events: [
+        "[00:00:01] PHANTOM: klon panelu uruchomiony",
+        "[00:00:05] AUTH: token prawdziwego NEXUS odciety",
+        "[00:00:09] HINT: override split=2; weather + quarantine archive",
+        "[00:00:12] BACKUP: clean image visible only after core shutdown"
+      ]
+    };
+
+    let tickHandle = null;
+    let noiseHandle = null;
+
+    const MirrorAudio = (() => {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audio = {
+        ctx: null,
+        master: null,
+        ambient: null,
+        nodes: [],
+        staticTimer: null,
+        enabled: true,
+        active: false
+      };
+
+      function ensure() {
+        if (!AudioContextClass) return null;
+        if (!audio.ctx) {
+          audio.ctx = new AudioContextClass();
+          audio.master = audio.ctx.createGain();
+          audio.master.gain.value = 0.23;
+          audio.master.connect(audio.ctx.destination);
+        }
+        if (audio.ctx.state === "suspended") audio.ctx.resume().catch(() => {});
+        return audio.ctx;
+      }
+
+      function tone(freq, dur, type, gainValue, delay, dest) {
+        if (!audio.enabled) return;
+        const ctx = ensure();
+        if (!ctx) return;
+        const t = ctx.currentTime + (delay || 0);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type || "sine";
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(Math.max(gainValue || 0.05, 0.0002), t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gain);
+        gain.connect(dest || audio.master);
+        osc.start(t);
+        osc.stop(t + dur + 0.05);
+      }
+
+      function sweep(from, to, dur, type, gainValue, delay, dest) {
+        if (!audio.enabled) return;
+        const ctx = ensure();
+        if (!ctx) return;
+        const t = ctx.currentTime + (delay || 0);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type || "sawtooth";
+        osc.frequency.setValueAtTime(from, t);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), t + dur);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(gainValue || 0.07, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gain);
+        gain.connect(dest || audio.master);
+        osc.start(t);
+        osc.stop(t + dur + 0.05);
+      }
+
+      function noise(dur, gainValue, freq, type, delay, dest) {
+        if (!audio.enabled) return;
+        const ctx = ensure();
+        if (!ctx) return;
+        const t = ctx.currentTime + (delay || 0);
+        const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * dur)), ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+        const source = ctx.createBufferSource();
+        const filter = ctx.createBiquadFilter();
+        const gain = ctx.createGain();
+        source.buffer = buffer;
+        filter.type = type || "bandpass";
+        filter.frequency.value = freq || 900;
+        filter.Q.value = 6;
+        gain.gain.setValueAtTime(gainValue || 0.05, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(dest || audio.master);
+        source.start(t);
+        source.stop(t + dur + 0.03);
+      }
+
+      function start() {
+        if (!audio.enabled || audio.active) return;
+        const ctx = ensure();
+        if (!ctx) return;
+        audio.active = true;
+        audio.ambient = ctx.createGain();
+        audio.ambient.gain.setValueAtTime(0.0001, ctx.currentTime);
+        audio.ambient.gain.linearRampToValueAtTime(0.09, ctx.currentTime + 1.2);
+        audio.ambient.connect(audio.master);
+
+        const low = ctx.createOscillator();
+        const lowGain = ctx.createGain();
+        low.type = "sawtooth";
+        low.frequency.value = 37;
+        lowGain.gain.value = 0.14;
+        low.connect(lowGain);
+        lowGain.connect(audio.ambient);
+
+        const pulse = ctx.createOscillator();
+        const pulseGain = ctx.createGain();
+        pulse.type = "triangle";
+        pulse.frequency.value = 54;
+        pulseGain.gain.value = 0.08;
+        pulse.connect(pulseGain);
+        pulseGain.connect(audio.ambient);
+
+        const source = ctx.createBufferSource();
+        const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const filter = ctx.createBiquadFilter();
+        const ng = ctx.createGain();
+        source.buffer = buffer;
+        source.loop = true;
+        filter.type = "lowpass";
+        filter.frequency.value = 240;
+        ng.gain.value = 0.05;
+        source.connect(filter);
+        filter.connect(ng);
+        ng.connect(audio.ambient);
+
+        low.start();
+        pulse.start();
+        source.start();
+        audio.nodes = [low, pulse, source];
+        audio.staticTimer = window.setInterval(() => {
+          if (audio.enabled && audio.active && Math.random() > 0.48) staticBurst();
+        }, 2300);
+      }
+
+      function stop(fade) {
+        if (!audio.active || !audio.ctx) return;
+        const ctx = audio.ctx;
+        if (audio.ambient) {
+          audio.ambient.gain.cancelScheduledValues(ctx.currentTime);
+          audio.ambient.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + (fade || 0.4));
+        }
+        window.clearInterval(audio.staticTimer);
+        setTimeout(() => {
+          audio.nodes.forEach(node => { try { node.stop(); } catch (_) {} });
+          try { audio.ambient && audio.ambient.disconnect(); } catch (_) {}
+          audio.nodes = [];
+          audio.ambient = null;
+          audio.active = false;
+        }, Math.ceil((fade || 0.4) * 1000) + 80);
+      }
+
+      function updateToggle() {
+        const btn = document.getElementById("mirror-audio-toggle");
+        if (!btn) return;
+        btn.textContent = audio.enabled ? "AUDIO ON" : "AUDIO OFF";
+        btn.classList.toggle("off", !audio.enabled);
+      }
+
+      function tick(timeLeft) {
+        if (!audio.enabled) return;
+        const urgent = timeLeft <= 180;
+        tone(urgent ? 108 : 68, urgent ? 0.09 : 0.13, "sine", urgent ? 0.09 : 0.065);
+        tone(urgent ? 420 : 170, urgent ? 0.035 : 0.045, "square", urgent ? 0.03 : 0.018, 0.035);
+      }
+
+      function glitchClick() {
+        noise(0.055, 0.07, 1200 + Math.random() * 900, "bandpass", Math.random() * 0.045);
+        tone(180 + Math.random() * 70, 0.045, "sawtooth", 0.035, 0.02);
+      }
+
+      function key() {
+        noise(0.026, 0.055, 1700, "bandpass");
+        tone(130 + Math.random() * 60, 0.026, "square", 0.022);
+      }
+
+      function enter() {
+        noise(0.12, 0.065, 1900, "bandpass");
+        sweep(220, 80, 0.14, "sawtooth", 0.05);
+      }
+
+      function error() {
+        tone(150, 0.16, "sawtooth", 0.13);
+        tone(92, 0.18, "square", 0.08, 0.08);
+        noise(0.18, 0.09, 520, "bandpass");
+      }
+
+      function riser() {
+        sweep(340, 2400, 0.65, "sawtooth", 0.075);
+        noise(0.48, 0.04, 2600, "highpass", 0.05);
+      }
+
+      function emp() {
+        const ctx = ensure();
+        if (!ctx) return;
+        if (audio.ambient) {
+          audio.ambient.gain.cancelScheduledValues(ctx.currentTime);
+          audio.ambient.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+        }
+        tone(42, 0.55, "sine", 0.22);
+        sweep(920, 70, 0.8, "sawtooth", 0.08, 0.08);
+        noise(0.38, 0.12, 180, "lowpass", 0.04);
+        stop(0.35);
+      }
+
+      function restore() {
+        sweep(180, 1280, 1.35, "sine", 0.08);
+        tone(520, 0.35, "sine", 0.045, 0.45);
+        tone(760, 0.55, "sine", 0.038, 0.82);
+      }
+
+      function staticBurst() {
+        noise(0.16 + Math.random() * 0.2, 0.045, 1800 + Math.random() * 1600, "highpass");
+      }
+
+      document.addEventListener("pointerdown", () => {
+        ensure();
+        if (audio.enabled && !audio.active && state.started) start();
+      }, true);
+
+      document.addEventListener("keydown", event => {
+        if (event.target && event.target.id === "terminal-input") {
+          if (event.key === "Enter") enter();
+          else if (event.key.length === 1 || event.key === "Backspace") key();
+        }
+      }, true);
+
+      return {
+        unlock: ensure,
+        start,
+        stop,
+        toggle() {
+          audio.enabled = !audio.enabled;
+          updateToggle();
+          if (audio.enabled) {
+            ensure();
+            if (state.started) start();
+            riser();
+          } else {
+            stop(0.25);
+          }
+        },
+        tick,
+        glitchClick,
+        key,
+        enter,
+        error,
+        riser,
+        emp,
+        restore,
+        staticBurst,
+        updateToggle
+      };
+    })();
+
+    window.MirrorAudio = MirrorAudio;
+    MirrorAudio.updateToggle();
+
+    function startGame() {
+      MirrorAudio.unlock();
+      MirrorAudio.start();
+      document.getElementById("intro").hidden = true;
+      state.started = true;
+      render();
+      tickHandle = window.setInterval(tick, 1000);
+      noiseHandle = window.setInterval(fakeNoise, 2100);
+      toast("Kwarantanna aktywna. Szukaj fragmentow kodu override.");
+    }
+
+    function tick() {
+      if (!state.started || state.restored) return;
+      if (!state.phantomKilled) {
+        state.timeLeft = Math.max(0, state.timeLeft - 1);
+        MirrorAudio.tick(state.timeLeft);
+        state.cpu = Math.min(99, state.cpu + (Math.random() > 0.64 ? 1 : 0));
+        state.ram = Math.min(94, state.ram + (Math.random() > 0.7 ? 1 : 0));
+        state.phantom = Math.min(99, state.phantom + (Math.random() > 0.55 ? 1 : 0));
+      } else {
+        state.cpu = Math.max(18, state.cpu - 1);
+        state.ram = Math.max(24, state.ram - (Math.random() > 0.5 ? 1 : 0));
+        state.phantom = Math.max(0, state.phantom - 3);
+      }
+      updateTop();
+      if (state.timeLeft === 0 && !state.phantomKilled) gameOver();
+    }
+
+    function fakeNoise() {
+      if (!state.started || state.restored || state.phantomKilled) return;
+      const sample = [
+        "PHANTOM: heap mirror grew by " + rand(6, 29) + " MB",
+        "IDS: impossible session from 127.0.66.6",
+        "WEATHER: atmospheric payload checksum changed",
+        "PROC: PID 666 ignored SIGTERM",
+        "FILES: phantom.dump locked by quarantine bit"
+      ];
+      state.events.unshift("[" + nowCode() + "] " + sample[rand(0, sample.length - 1)]);
+      state.events = state.events.slice(0, 16);
+      MirrorAudio.staticBurst();
+      updateMiniLog();
+    }
+
+    function render() {
+      document.getElementById("nav").innerHTML = tabs.map(([id, label]) =>
+        `<button class="${state.panel === id ? "active" : ""}" onclick="setPanel('${id}')">${label}</button>`
+      ).join("");
+      document.getElementById("screen").innerHTML = screenHtml(state.panel);
+      updateTop();
+      updateObjectives();
+      updateMiniLog();
+      if (state.panel === "terminal") {
+        const output = document.getElementById("terminal-output");
+        if (output) output.scrollTop = output.scrollHeight;
+        const cmd = document.getElementById("terminal-input");
+        if (cmd) cmd.focus();
+      }
+    }
+
+    function setPanel(panel) {
+      MirrorAudio.glitchClick();
+      state.panel = panel;
+      render();
+    }
+
+    function screenHtml(panel) {
+      if (panel === "dash") return dashHtml();
+      if (panel === "logs") return logsHtml();
+      if (panel === "chat") return chatHtml();
+      if (panel === "weather") return weatherHtml();
+      if (panel === "files") return filesHtml();
+      if (panel === "terminal") return terminalHtml();
+      if (panel === "processes") return processesHtml();
+      if (panel === "admin") return adminHtml();
+      return "";
+    }
+
+    function dashHtml() {
+      return `
+        <h2>Mirror Dashboard</h2>
+        <div class="grid">
+          <div class="card"><div class="k">Tryb</div><div class="v hot">FAKE ROOT</div><div class="hint">Ten panel jest lustrzana kopia. Backend jest odciety.</div></div>
+          <div class="card"><div class="k">Wezel</div><div class="v">Q-127</div><div class="hint">Faraday cage: dziala tylko JS w przegladarce.</div></div>
+          <div class="card"><div class="k">Proces krytyczny</div><div class="v hot">PID 666</div><div class="hint">PHANTOM_CORE blokuje restore.</div></div>
+          <div class="card"><div class="k">Kod override</div><div class="v">${codePreview()}</div><div class="hint">Zloz dwa fragmenty w jeden ciag.</div></div>
+        </div>
+        <div class="matrix" style="margin-top:12px;"></div>
+      `;
+    }
+
+    function logsHtml() {
+      return `
+        <h2>Logi kwarantanny</h2>
+        <div class="logbox">
+          <div class="line"><b>PHANTOM</b> zaczepil sesje operatora i wygenerowal panel-lustro.</div>
+          <div class="line"><b>AUTH</b> prawdziwy token zostal odciety. Zadna komenda nie wychodzi poza przegladarke.</div>
+          <div class="line"><b>HINT</b> override split=2. Part 1 znajduje sie w module POGODA.</div>
+          <div class="line"><b>HINT</b> Part 2 znajduje sie w archiwum kwarantanny, ale pobieranie pliku jest zablokowane.</div>
+          <div class="line"><b>PROC</b> PID 666 PHANTOM_CORE wymaga pelnego kodu override.</div>
+          ${state.events.map(x => `<div class="line">${escapeHtml(x)}</div>`).join("")}
+        </div>
+      `;
+    }
+
+    function chatHtml() {
+      return `
+        <h2>Czat odzyskowy</h2>
+        <div class="list">
+          <div class="chat-row"><div><b class="cyan">SYS_AUTO</b><div class="mini">Nie ufaj dashboardowi. To odbicie, nie VPS.</div></div><span class="warn">LIVE</span></div>
+          <div class="chat-row"><div><b class="hot">PHANTOM</b><div class="mini">Part 1? Nigdy nie sprawdzisz pogody w wezle bledow.</div></div><span>00:06</span></div>
+          <div class="chat-row"><div><b class="ok">ROOT_SHADOW</b><div class="mini">Jesli nie da sie pobrac dumpa, sprobuj go przeczytac w terminalu.</div></div><span>00:09</span></div>
+          <div class="chat-row"><div><b class="warn">BACKUPD</b><div class="mini">Czysty backup ruszy dopiero po uciszeniu PID 666.</div></div><span>00:12</span></div>
+        </div>
+      `;
+    }
+
+    function weatherHtml() {
+      return `
+        <h2>Atmospheric OSINT</h2>
+        <div class="grid">
+          <div class="card"><div class="k">Lokalizacja</div><div class="v hot">WEZEL_KWARANTANNY_ERR</div><div class="hint">Miasto zwraca uszkodzony payload pogodowy.</div></div>
+          <div class="card"><div class="k">Temperatura</div><div class="v">-273.15 C</div><div class="hint">Wartosc niemozliwa. Czujnik jest lustrem.</div></div>
+          <div class="card"><div class="k">HEX payload</div><div class="v cyan">4E 45 58</div><div class="hint">Kliknij dekodowanie, zeby zapisac fragment.</div></div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="primary" onclick="decodeNex()">DEKODUJ HEX</button>
+          <button onclick="toast('Normalne miasta zostaly wymazane przez PHANTOM. Ten modul pokazuje tylko wezel bledu.')">SKANUJ INNE MIASTO</button>
+        </div>
+      `;
+    }
+
+    function filesHtml() {
+      const files = [
+        ["/var/log/phantom.dump", "quarantine/base64", "LOCKED"],
+        ["/root/backup/quarantine_clean_2026-07-12.tar.gz", "restore image", state.phantomKilled ? "READY" : "SEALED"],
+        ["/etc/nexus/mirror.conf", "fake config", "READONLY"],
+        ["/tmp/session_shadow.bin", "volatile cache", "NO ACCESS"]
+      ];
+      return `
+        <h2>Eksplorator kwarantanny</h2>
+        <div class="list">
+          ${files.map(([path, meta, badge]) => `
+            <div class="file-row">
+              <div><b>${path}</b><div class="mini">${meta}</div></div>
+              <button onclick="downloadDenied('${path}')">${badge}</button>
+            </div>
+          `).join("")}
+        </div>
+        <p class="warn">Pobieranie dumpa jest blokowane. Terminal nadal potrafi czytac pliki w lustrze.</p>
+      `;
+    }
+
+    function terminalHtml() {
+      return `
+        <h2>Terminal lustra</h2>
+        <div class="term">
+          <div class="terminal-output" id="terminal-output">${state.terminal.map(escapeHtml).join("\n")}</div>
+          <div class="terminal-row">
+            <input id="terminal-input" autocomplete="off" spellcheck="false" placeholder="np. cat /var/log/phantom.dump" onkeydown="if(event.key==='Enter') runCommand()">
+            <button onclick="runCommand()">ENTER</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function processesHtml() {
+      const status = state.phantomKilled ? "STOPPED" : "ACTIVE";
+      const cpu = state.phantomKilled ? "0%" : "99%";
+      return `
+        <h2>Procesy</h2>
+        <div class="list">
+          <div class="proc-row"><div><b>[PID:001] mirror_init</b><div class="mini">CPU 2% / RAM 18 MB / status RUN</div></div><button disabled>SYS</button></div>
+          <div class="proc-row"><div><b>[PID:104] fake_api_guard</b><div class="mini">CPU 1% / API calls blocked / status RUN</div></div><button disabled>LOCK</button></div>
+          <div class="proc-row"><div><b class="hot">[PID:666] PHANTOM_CORE</b><div class="mini">CPU ${cpu} / memory mirror expanding / status ${status}</div></div><button class="danger" onclick="openKill()" ${state.phantomKilled ? "disabled" : ""}>KILL</button></div>
+          <div class="proc-row"><div><b>[PID:777] backupd_restore</b><div class="mini">Czeka na zatrzymanie PHANTOM_CORE</div></div><button disabled>WAIT</button></div>
+        </div>
+      `;
+    }
+
+    function adminHtml() {
+      return `
+        <h2>Admin Restore</h2>
+        <div class="grid">
+          <div class="card"><div class="k">Stan core</div><div class="v ${state.phantomKilled ? "ok" : "hot"}">${state.phantomKilled ? "CLEAN" : "DIRTY"}</div><div class="hint">Backup mozna przywrocic dopiero po kill PID 666.</div></div>
+          <div class="card"><div class="k">Sesja</div><div class="v">MIRROR</div><div class="hint">To nadal bezpieczna symulacja client-side.</div></div>
+        </div>
+        <div class="list" style="margin-top:12px;">
+          <div class="backup-row"><div><b>quarantine_clean_2026-07-12.tar.gz</b><div class="mini">Ostatni czysty obraz przed infekcja PHANTOM.</div></div><button class="primary" onclick="restoreClean()" ${state.phantomKilled ? "" : "disabled"}>RESTORE</button></div>
+          <div class="backup-row"><div><b>phantom_shadow_live.tar.gz</b><div class="mini">Uszkodzony obraz lustra. Nie przywracac.</div></div><button disabled>BLOCK</button></div>
+        </div>
+      `;
+    }
+
+    function updateTop() {
+      const m = Math.floor(state.timeLeft / 60).toString().padStart(2, "0");
+      const s = (state.timeLeft % 60).toString().padStart(2, "0");
+      document.getElementById("clock").textContent = `${m}:${s}`;
+      setMeter("cpu", state.cpu);
+      setMeter("ram", state.ram);
+      setMeter("phantom", state.phantom);
+    }
+
+    function setMeter(id, value) {
+      document.getElementById(id + "-bar").style.width = value + "%";
+      document.getElementById(id + "-val").textContent = value + "%";
+    }
+
+    function updateObjectives() {
+      document.getElementById("obj-nex").classList.toggle("done", state.foundNex);
+      document.getElementById("obj-us").classList.toggle("done", state.foundUs);
+      document.getElementById("obj-kill").classList.toggle("done", state.phantomKilled);
+      document.getElementById("obj-restore").classList.toggle("done", state.restored);
+    }
+
+    function updateMiniLog() {
+      document.getElementById("mini-log").innerHTML = state.events.slice(0, 7).map(x => `<div class="line">${escapeHtml(x)}</div>`).join("");
+    }
+
+    function decodeNex() {
+      state.foundNex = true;
+      state.events.unshift("[" + nowCode() + "] WEATHER: HEX 4E 45 58 => NEX");
+      MirrorAudio.riser();
+      updateObjectives();
+      toast("Fragment 1 zapisany: NEX");
+      if (state.panel === "weather") render();
+    }
+
+    function downloadDenied(path) {
+      MirrorAudio.error();
+      if (path.indexOf("phantom.dump") !== -1) {
+        toast("Pobieranie zablokowane: uzyj terminala i komendy cat /var/log/phantom.dump");
+      } else if (path.indexOf("quarantine_clean") !== -1) {
+        toast(state.phantomKilled ? "Ten obraz przywracasz w ADMIN." : "Backup zapieczetowany przez PHANTOM_CORE.");
+      } else {
+        toast("Brak dostepu w lustrze. To tylko falszywy plik.");
+      }
+    }
+
+    function runCommand() {
+      const input = document.getElementById("terminal-input");
+      const raw = input.value.trim();
+      if (!raw) return;
+      MirrorAudio.enter();
+      input.value = "";
+      state.terminal.push("mirror@quarantine:~$ " + raw);
+      const cmd = raw.toLowerCase().replace(/\s+/g, " ");
+      if (cmd === "clear") {
+        state.terminal = [];
+      } else if (cmd === "help") {
+        MirrorAudio.glitchClick();
+        state.terminal.push("Dostepne: help, ls, cat /var/log/phantom.dump, hex 4E 45 58, decode VVMyNA==, clear");
+      } else if (cmd === "ls") {
+        MirrorAudio.glitchClick();
+        state.terminal.push("/var/log/phantom.dump\n/root/backup/quarantine_clean_2026-07-12.tar.gz\n/etc/nexus/mirror.conf");
+      } else if (cmd === "cat /var/log/phantom.dump") {
+        MirrorAudio.staticBurst();
+        state.terminal.push("VVMyNA==");
+        state.terminal.push("# base64 payload detected; decode VVMyNA==");
+        state.events.unshift("[" + nowCode() + "] TERMINAL: phantom.dump => VVMyNA==");
+        toast("Dump odczytany. Zdekoduj VVMyNA==, zeby poznac fragment.");
+      } else if (/^(decode|base64 -d|atob) vvmyna==$/.test(cmd)) {
+        MirrorAudio.riser();
+        state.terminal.push("US24");
+        state.foundUs = true;
+        state.events.unshift("[" + nowCode() + "] TERMINAL: VVMyNA== => US24");
+        toast("Fragment 2 zapisany: US24");
+      } else if (cmd === "hex 4e 45 58") {
+        MirrorAudio.riser();
+        state.terminal.push("NEX");
+        state.foundNex = true;
+        state.events.unshift("[" + nowCode() + "] TERMINAL: 4E 45 58 => NEX");
+        toast("Fragment 1 zapisany: NEX");
+      } else if (cmd.indexOf("kill") === 0) {
+        MirrorAudio.error();
+        state.terminal.push("permission denied: PHANTOM_CORE requires override from PROCESY");
+      } else {
+        MirrorAudio.error();
+        state.terminal.push("command not found inside mirror cage: " + raw);
+      }
+      updateObjectives();
+      render();
+    }
+
+    function openKill() {
+      MirrorAudio.glitchClick();
+      document.getElementById("kill-modal").hidden = false;
+      document.getElementById("override-input").value = codePreview().replace(/\?/g, "");
+      document.getElementById("override-input").focus();
+    }
+
+    function closeKill() {
+      document.getElementById("kill-modal").hidden = true;
+    }
+
+    function confirmKill() {
+      const value = document.getElementById("override-input").value.trim().toUpperCase();
+      if (value !== "NEXUS24") {
+        MirrorAudio.error();
+        toast("Zly kod. PHANTOM odrzuca override.");
+        document.querySelector(".brand").classList.add("glitch");
+        return;
+      }
+      state.foundNex = true;
+      state.foundUs = true;
+      state.phantomKilled = true;
+      MirrorAudio.emp();
+      state.cpu = 27;
+      state.ram = 31;
+      state.phantom = 0;
+      state.events.unshift("[" + nowCode() + "] PROC: PID 666 PHANTOM_CORE stopped");
+      closeKill();
+      toast("PHANTOM_CORE zatrzymany. Admin restore odblokowany.");
+      render();
+    }
+
+    function restoreClean() {
+      if (!state.phantomKilled) {
+        MirrorAudio.error();
+        toast("Najpierw zatrzymaj PHANTOM_CORE.");
+        return;
+      }
+      state.restored = true;
+      MirrorAudio.restore();
+      state.events.unshift("[" + nowCode() + "] RESTORE: clean archive accepted");
+      updateObjectives();
+      document.getElementById("crt").hidden = false;
+      window.clearInterval(tickHandle);
+      window.clearInterval(noiseHandle);
+      window.setTimeout(() => {
+        window.location.href = "/";
+      }, 1850);
+    }
+
+    function gameOver() {
+      MirrorAudio.error();
+      window.clearInterval(tickHandle);
+      document.getElementById("intro").hidden = false;
+      document.querySelector("#intro .dialog h2").textContent = "PHANTOM przejal wezel";
+      document.querySelector("#intro .dialog p").textContent = "Czas sie skonczyl. Restart kwarantanny przywroci stan gry.";
+      document.querySelector("#intro .dialog .primary").textContent = "RESTART";
+      document.querySelector("#intro .dialog .primary").onclick = () => window.location.reload();
+    }
+
+    function codePreview() {
+      return (state.foundNex ? "NEX" : "???") + (state.foundUs ? "US24" : "????");
+    }
+
+    function toast(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text;
+      el.classList.add("show");
+      window.clearTimeout(toast.timer);
+      toast.timer = window.setTimeout(() => el.classList.remove("show"), 2600);
+    }
+
+    function rand(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function nowCode() {
+      const d = new Date();
+      return d.toTimeString().slice(0, 8);
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    render();
+  </script>
+</body>
+</html>

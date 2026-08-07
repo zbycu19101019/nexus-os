@@ -1,0 +1,48 @@
+NAJPROSTSZA INSTALACJA NEXUS OS
+================================
+
+Wariant 1 - masz plik nexusos-installer.run:
+
+  scp nexusos-installer.run root@IP_SERWERA:/root/
+  ssh root@IP_SERWERA
+  cd /root
+  bash nexusos-installer.run
+
+To nic nie pyta. Po prostu instaluje pelny NEXUS OS i stawia strone.
+
+Wariant 2 - masz paczke tar.gz:
+
+  scp nexusos-linux-installer.tar.gz root@IP_SERWERA:/root/
+  ssh root@IP_SERWERA
+  cd /root
+  tar -xzf nexusos-linux-installer.tar.gz
+  cd nexusos_linux_package
+  bash INSTALLUJ_NEXUS.sh
+
+To tez nic nie pyta.
+
+Wariant 3 - masz ZIP na Windowsie:
+
+  1. Rozpakuj nexusos-linux-installer.zip.
+  2. Wgraj folder nexusos_linux_package na VPS.
+  3. Na VPS wejdz do folderu i odpal:
+
+     bash INSTALLUJ_NEXUS.sh
+
+Po instalacji wejdz:
+
+  http://IP_SERWERA/
+  http://IP_SERWERA:9090/
+  http://IP_SERWERA/static/aero.html
+  http://IP_SERWERA:9090/static/aero.html
+
+Jesli podales domene nexusos.pl:
+
+  https://nexusos.pl/
+  https://nexusos.pl/static/aero.html
+
+Diagnostyka:
+
+  /opt/nexusos/bin/nexusos-doctor.sh
+  systemctl status nexusos --no-pager
+  journalctl -u nexusos -f

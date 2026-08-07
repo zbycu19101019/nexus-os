@@ -1,0 +1,35 @@
+[Unit]
+Description=NEXUS OS Emergency Desktop (Openbox on tty1)
+Documentation=file:/opt/nexusos/docs/NEXUS_OS_APPLIANCE.md
+Wants=network-online.target nexusos.service
+After=network-online.target nexusos.service systemd-user-sessions.service
+Conflicts=nexusos-appliance.service getty@tty1.service display-manager.service
+
+[Service]
+Type=simple
+User=__KIOSK_USER__
+PAMName=login
+WorkingDirectory=/home/__KIOSK_USER__
+EnvironmentFile=-/etc/nexusos/kiosk.env
+Environment=XDG_SEAT=seat0
+Environment=XDG_SESSION_TYPE=x11
+Environment=XDG_RUNTIME_DIR=/run/user/__KIOSK_UID__
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+ExecStartPre=/bin/mkdir -p /run/user/__KIOSK_UID__
+ExecStartPre=/bin/chown __KIOSK_USER__:__KIOSK_USER__ /run/user/__KIOSK_UID__
+ExecStart=__PREFIX__/bin/nexusos-desktop.sh
+Restart=always
+RestartSec=2
+StartLimitIntervalSec=60
+StartLimitBurst=8
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

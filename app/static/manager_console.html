@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+  <title>NEXUS Manager VM Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #eafcff;
+      --muted: #7d8b94;
+      --cyan: #14e6ff;
+      --green: #65ff9b;
+      --warn: #ffd36e;
+      --red: #ff5f73;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #000;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; color: var(--ink); }
+    body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+    body.embedded {
+      grid-template-rows: minmax(0, 1fr);
+    }
+    body.embedded .bar,
+    body.embedded .foot {
+      display: none !important;
+    }
+    body.embedded #screen {
+      min-height: 100%;
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid rgba(20,230,255,.18);
+      background: linear-gradient(180deg, rgba(9,18,24,.96), rgba(0,0,0,.9));
+    }
+    .title { min-width: 0; }
+    .kicker {
+      margin: 0 0 2px;
+      color: var(--cyan);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 15px;
+      letter-spacing: -.03em;
+    }
+    .status {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    button {
+      min-height: 34px;
+      border: 1px solid rgba(20,230,255,.32);
+      border-radius: 999px;
+      padding: 8px 11px;
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    button.primary { border-color: rgba(101,255,155,.6); color: var(--green); }
+    button.warn { border-color: rgba(255,211,110,.58); color: var(--warn); }
+    button.danger { border-color: rgba(255,95,115,.58); color: var(--red); }
+    button:active { transform: scale(.98); }
+    .size-input {
+      width: 78px;
+      min-height: 34px;
+      border: 1px solid rgba(20,230,255,.2);
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,.055);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: 11px;
+      text-align: center;
+      outline: none;
+    }
+    .size-input:focus {
+      border-color: rgba(20,230,255,.72);
+      box-shadow: 0 0 0 3px rgba(20,230,255,.12);
+    }
+    #screen {
+      --vm-stage-pad-x: 0px;
+      --vm-stage-pad-y: 0px;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #000;
+      outline: none;
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+    }
+    #screen.fit-mode {
+      overflow: hidden;
+      align-items: center;
+      justify-content: center;
+    }
+    #screen.custom-mode {
+      overflow: auto;
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: var(--vm-stage-pad-y) var(--vm-stage-pad-x);
+      cursor: default;
+    }
+    #screen.native-mode {
+      overflow: auto;
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: var(--vm-stage-pad-y) var(--vm-stage-pad-x);
+      cursor: default;
+    }
+    #rfb-target {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      flex: 0 0 auto;
+    }
+    #screen.fit-mode #rfb-target {
+      width: 100%;
+      height: 100%;
+    }
+    #screen.custom-mode #rfb-target {
+      width: var(--vm-custom-width, 1024px);
+      height: var(--vm-custom-height, 768px);
+    }
+    #screen.native-mode #rfb-target {
+      width: max-content;
+      height: max-content;
+    }
+    #rfb-target canvas {
+      display: block;
+      outline: none;
+      image-rendering: auto;
+      touch-action: none;
+      max-width: none;
+      max-height: none;
+    }
+    #rfb-target > * {
+      flex: 0 0 auto;
+    }
+    #rfb-target > div {
+      width: 100% !important;
+      height: 100% !important;
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      background: #000 !important;
+    }
+    #screen.native-mode #rfb-target > div {
+      width: auto !important;
+      height: auto !important;
+    }
+    .scale-badge {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      z-index: 5;
+      border: 1px solid rgba(20,230,255,.28);
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: rgba(0,0,0,.62);
+      color: rgba(234,252,255,.84);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+    }
+    .placeholder {
+      max-width: 720px;
+      padding: 26px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.7;
+    }
+    .placeholder strong { color: var(--cyan); }
+    .foot {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) repeat(4, auto);
+      gap: 8px;
+      padding: 8px;
+      border-top: 1px solid rgba(20,230,255,.14);
+      background: rgba(0,0,0,.9);
+    }
+    input {
+      min-width: 0;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.06);
+      color: var(--ink);
+      outline: none;
+      font: inherit;
+      font-size: 12px;
+    }
+    .iso-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0,0,0,.78);
+    }
+    .iso-modal.active { display: flex; }
+    .iso-panel {
+      width: min(820px, 96vw);
+      max-height: 86vh;
+      overflow: auto;
+      border: 1px solid rgba(20,230,255,.24);
+      border-radius: 18px;
+      background: #05080b;
+      box-shadow: 0 24px 70px rgba(0,0,0,.55);
+      padding: 14px;
+    }
+    .iso-panel h2 { margin: 0 0 10px; font-size: 15px; }
+    .iso-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .iso-grid .wide { grid-column: 1 / -1; }
+    .iso-panel pre {
+      max-height: 210px;
+      overflow: auto;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px;
+      padding: 10px;
+      color: var(--muted);
+      background: #020202;
+      font-size: 11px;
+    }
+    @media (max-width: 720px) {
+      .bar { display: grid; }
+      .controls { justify-content: stretch; }
+      button { flex: 1 1 calc(50% - 8px); }
+      .foot { grid-template-columns: 1fr; }
+      .iso-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div class="title">
+      <p class="kicker">NEXUS VM LIVE VIEW</p>
+      <h1 id="title">Konsola VM</h1>
+      <div id="status" class="status">Startuje klient noVNC...</div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="reconnect">Polacz</button>
+      <button class="warn" id="cad">Ctrl+Alt+Del</button>
+      <button id="fit">Fit ON</button>
+      <input id="size-w" class="size-input" type="number" min="320" max="7680" step="16" title="Szerokosc obrazu VM">
+      <input id="size-h" class="size-input" type="number" min="240" max="4320" step="16" title="Wysokosc obrazu VM">
+      <button id="custom-size">Rozmiar</button>
+      <button id="center-view">Centruj</button>
+      <button id="reset-mouse">Reset mysz</button>
+      <button class="warn" id="iso-open">ISO</button>
+      <button id="full">Full</button>
+      <button id="view">Input ON</button>
+      <button class="danger" id="disconnect">Rozlacz</button>
+    </div>
+  </header>
+  <main id="screen" tabindex="0">
+    <div class="placeholder"><strong>NO SIGNAL</strong><br>Oczekuje na sesje VNC z NEXUS CORE.</div>
+  </main>
+  <footer class="foot">
+    <input id="clip" placeholder="Wspoldzielony schowek: tekst z PC albo VM">
+    <button id="clip-read">Czytaj PC</button>
+    <button id="clip-copy">Kopiuj PC</button>
+    <button id="paste">Wklej do VM</button>
+    <button id="type-text">Wpisz</button>
+  </footer>
+  <div id="iso-modal" class="iso-modal">
+    <div class="iso-panel">
+      <h2>ISO / CD-ROM</h2>
+      <div class="iso-grid">
+        <select id="iso-select" class="wide"></select>
+        <select id="iso-target"></select>
+        <label><input id="iso-live" type="checkbox" checked> LIVE</label>
+        <label><input id="iso-config" type="checkbox" checked> PERSISTENT</label>
+        <label><input id="iso-force" type="checkbox" checked> FORCE EJECT/INSERT</label>
+        <button class="warn" id="iso-attach">Podmien ISO</button>
+        <button class="danger" id="iso-eject">Wysun ISO</button>
+        <button id="iso-repair">Napraw CD-ROM</button>
+        <button id="iso-close">Zamknij</button>
+      </div>
+      <pre id="iso-current">Ladowanie...</pre>
+    </div>
+  </div>
+
+  <script type="module">
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const vmId = hash.get("vm") || "";
+    const backend = hash.get("backend") || "auto";
+    const token = hash.get("token") || "";
+    const title = document.getElementById("title");
+    const statusEl = document.getElementById("status");
+    const screen = document.getElementById("screen");
+    const clip = document.getElementById("clip");
+    const fitButton = document.getElementById("fit");
+    const fullButton = document.getElementById("full");
+    const customButton = document.getElementById("custom-size");
+    const centerButton = document.getElementById("center-view");
+    const resetMouseButton = document.getElementById("reset-mouse");
+    const isoModal = document.getElementById("iso-modal");
+    const isoSelect = document.getElementById("iso-select");
+    const isoTarget = document.getElementById("iso-target");
+    const isoCurrent = document.getElementById("iso-current");
+    const sizeW = document.getElementById("size-w");
+    const sizeH = document.getElementById("size-h");
+    let rfb = null;
+    let rfbTarget = null;
+    let scaleMode = hash.get("scale") || localStorage.getItem("nexus_console_scale") || "fit";
+    if (!["fit", "native", "custom"].includes(scaleMode)) scaleMode = "fit";
+    let customWidth = clampInt(hash.get("w") || localStorage.getItem("nexus_console_custom_w") || 1024, 320, 7680, 1024);
+    let customHeight = clampInt(hash.get("h") || localStorage.getItem("nexus_console_custom_h") || 768, 240, 4320, 768);
+    let viewOnly = false;
+    let resizeObserver = null;
+    let resizeTimer = null;
+
+    title.textContent = vmId ? `Konsola: ${vmId}` : "Konsola VM";
+    sizeW.value = String(customWidth);
+    sizeH.value = String(customHeight);
+    clip.value = localStorage.getItem("nexus_shared_clipboard") || "";
+
+    function clampInt(value, min, max, fallback) {
+      const number = Number.parseInt(value, 10);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.max(min, Math.min(max, number));
+    }
+
+    function emit(type, payload = {}) {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ source: "nexus-manager-console", type, vmId, ...payload }, location.origin);
+        }
+      } catch (_) {}
+    }
+
+    function setStatus(text, tone = "") {
+      statusEl.textContent = text;
+      statusEl.style.color = tone === "ok" ? "var(--green)" : tone === "warn" ? "var(--warn)" : tone === "bad" ? "var(--red)" : "var(--muted)";
+      emit("status", { text, tone });
+    }
+
+    function readableError(data, fallback = "Operacja nie powiodla sie") {
+      if (!data) return fallback;
+      const detail = data.detail || data.error || data.message || data;
+      if (typeof detail === "string") return detail;
+      try { return JSON.stringify(detail, null, 2); } catch (_) { return fallback; }
+    }
+
+    function api(path, options = {}) {
+      return fetch(path, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": token,
+          ...(options.headers || {})
+        }
+      });
+    }
+
+    function wsUrl(path) {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${location.host}${path}`;
+    }
+
+    function fitLabel() {
+      if (scaleMode === "custom") return `CUSTOM ${customWidth}x${customHeight}`;
+      if (scaleMode === "native") return "1:1 NATIVE";
+      return `FIT ${Math.max(0, screen.clientWidth)}x${Math.max(0, screen.clientHeight)}`;
+    }
+
+    function ensureScaleBadge() {
+      let badge = document.getElementById("scale-badge");
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.id = "scale-badge";
+        badge.className = "scale-badge";
+        screen.appendChild(badge);
+      }
+      badge.textContent = fitLabel();
+    }
+
+    function ensureRfbTarget() {
+      if (rfbTarget && rfbTarget.isConnected) return rfbTarget;
+      rfbTarget = document.createElement("div");
+      rfbTarget.id = "rfb-target";
+      rfbTarget.tabIndex = 0;
+      screen.appendChild(rfbTarget);
+      return rfbTarget;
+    }
+
+    function applyRfbScale() {
+      screen.classList.toggle("fit-mode", scaleMode === "fit");
+      screen.classList.toggle("custom-mode", scaleMode === "custom");
+      screen.classList.toggle("native-mode", scaleMode === "native");
+      fitButton.textContent = scaleMode === "fit" ? "Fit ON" : scaleMode === "custom" ? "Custom" : "1:1";
+      customButton.classList.toggle("primary", scaleMode === "custom");
+      localStorage.setItem("nexus_console_scale", scaleMode);
+      localStorage.setItem("nexus_console_custom_w", String(customWidth));
+      localStorage.setItem("nexus_console_custom_h", String(customHeight));
+      sizeW.value = String(customWidth);
+      sizeH.value = String(customHeight);
+      screen.style.setProperty("--vm-custom-width", `${customWidth}px`);
+      screen.style.setProperty("--vm-custom-height", `${customHeight}px`);
+      if (rfbTarget) {
+        if (scaleMode === "fit") {
+          rfbTarget.style.width = "100%";
+          rfbTarget.style.height = "100%";
+        } else if (scaleMode === "custom") {
+          rfbTarget.style.width = `${customWidth}px`;
+          rfbTarget.style.height = `${customHeight}px`;
+        } else {
+          rfbTarget.style.width = "";
+          rfbTarget.style.height = "";
+        }
+      }
+      centerStage(false);
+      ensureScaleBadge();
+      if (!rfb) return;
+      try {
+        rfb.scaleViewport = scaleMode !== "native";
+        rfb.resizeSession = false;
+        rfb.clipViewport = scaleMode !== "native";
+        rfb.dragViewport = false;
+        rfb.showDotCursor = true;
+        if ("qualityLevel" in rfb) rfb.qualityLevel = 6;
+        if ("compressionLevel" in rfb) rfb.compressionLevel = 2;
+      } catch (_) {}
+    }
+
+    function stageContentSize() {
+      const target = rfbTarget || document.getElementById("rfb-target");
+      const canvas = target?.querySelector("canvas");
+      if (scaleMode === "custom") return { width: customWidth, height: customHeight };
+      const rect = target?.getBoundingClientRect();
+      const width = Math.ceil(rect?.width || canvas?.offsetWidth || canvas?.width || 0);
+      const height = Math.ceil(rect?.height || canvas?.offsetHeight || canvas?.height || 0);
+      return {
+        width: Math.max(1, width || screen.clientWidth),
+        height: Math.max(1, height || screen.clientHeight)
+      };
+    }
+
+    function centerStage(forceScroll = false) {
+      if (scaleMode === "fit") {
+        screen.style.setProperty("--vm-stage-pad-x", "0px");
+        screen.style.setProperty("--vm-stage-pad-y", "0px");
+        return;
+      }
+      const { width, height } = stageContentSize();
+      const padX = Math.max(0, Math.floor((screen.clientWidth - width) / 2));
+      const padY = Math.max(0, Math.floor((screen.clientHeight - height) / 2));
+      screen.style.setProperty("--vm-stage-pad-x", `${padX}px`);
+      screen.style.setProperty("--vm-stage-pad-y", `${padY}px`);
+      if (forceScroll) {
+        requestAnimationFrame(() => {
+          screen.scrollLeft = Math.max(0, Math.floor((screen.scrollWidth - screen.clientWidth) / 2));
+          screen.scrollTop = Math.max(0, Math.floor((screen.scrollHeight - screen.clientHeight) / 2));
+        });
+      }
+    }
+
+    function recalcViewport() {
+      if (!rfb) {
+        ensureScaleBadge();
+        return;
+      }
+      applyRfbScale();
+      try {
+        if (scaleMode !== "native" && rfb._display && typeof rfb._display.autoscale === "function") {
+          const box = rfbTarget || screen;
+          const width = Math.max(1, Math.round(box.clientWidth || customWidth));
+          const height = Math.max(1, Math.round(box.clientHeight || customHeight));
+          rfb._display.autoscale(width, height);
+        }
+      } catch (_) {}
+      try {
+        if (typeof rfb._windowResize === "function") rfb._windowResize();
+      } catch (_) {}
+      centerStage(false);
+      try { rfb.focus(); } catch (_) {}
+      emit("fit", { mode: scaleMode, width: screen.clientWidth, height: screen.clientHeight, customWidth, customHeight });
+    }
+
+    function queueViewportRecalc(delay = 80) {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(recalcViewport, delay);
+    }
+
+    function bindViewportResize() {
+      if (resizeObserver) {
+        try { resizeObserver.disconnect(); } catch (_) {}
+        resizeObserver = null;
+      }
+      if ("ResizeObserver" in window) {
+        resizeObserver = new ResizeObserver(() => queueViewportRecalc(120));
+        resizeObserver.observe(screen);
+      }
+      window.removeEventListener("resize", queueViewportRecalc);
+      window.removeEventListener("orientationchange", queueViewportRecalc);
+      document.removeEventListener("fullscreenchange", updateFullscreenButton);
+      window.addEventListener("resize", queueViewportRecalc);
+      window.addEventListener("orientationchange", () => queueViewportRecalc(280));
+      document.addEventListener("fullscreenchange", updateFullscreenButton);
+    }
+
+    function setScaleMode(mode) {
+      scaleMode = ["fit", "native", "custom"].includes(mode) ? mode : "fit";
+      applyRfbScale();
+      queueViewportRecalc(40);
+      emit("fit", { mode: scaleMode, customWidth, customHeight });
+    }
+
+    function setFitMode(next) {
+      setScaleMode(next ? "fit" : "native");
+    }
+
+    function setCustomSize(width = sizeW.value, height = sizeH.value) {
+      customWidth = clampInt(width, 320, 7680, customWidth || 1024);
+      customHeight = clampInt(height, 240, 4320, customHeight || 768);
+      setScaleMode("custom");
+      setStatus(`Ustawiono rozmiar obrazu VM: ${customWidth}x${customHeight}.`, "ok");
+    }
+
+    function setInputMode(inputOn) {
+      viewOnly = !inputOn;
+      document.getElementById("view").textContent = viewOnly ? "Input OFF" : "Input ON";
+      if (rfb) rfb.viewOnly = viewOnly;
+      emit("input", { active: !viewOnly });
+    }
+
+    function focusConsole() {
+      try { screen.focus({ preventScroll: true }); } catch (_) { try { screen.focus(); } catch (_) {} }
+      try { if (rfbTarget) rfbTarget.focus({ preventScroll: true }); } catch (_) { try { if (rfbTarget) rfbTarget.focus(); } catch (_) {} }
+      try { if (rfb) rfb.focus(); } catch (_) {}
+    }
+
+    function resetMouseCapture() {
+      const target = rfbTarget || document.getElementById("rfb-target");
+      if (target) {
+        target.style.pointerEvents = "none";
+        screen.style.pointerEvents = "none";
+        window.setTimeout(() => {
+          target.style.pointerEvents = "auto";
+          screen.style.pointerEvents = "auto";
+          recalcViewport();
+          centerStage(false);
+          focusConsole();
+          setStatus("Zresetowano przechwytywanie myszy i przeliczono skale.", "ok");
+        }, 140);
+      } else {
+        focusConsole();
+      }
+    }
+
+    function sendCtrlAltDel() {
+      if (rfb && typeof rfb.sendCtrlAltDel === "function") {
+        rfb.sendCtrlAltDel();
+        setStatus("Wyslano CTRL+ALT+DEL do VM.", "ok");
+      } else {
+        setStatus("Konsola VNC nie jest jeszcze polaczona.", "warn");
+      }
+      focusConsole();
+    }
+
+    function rememberSharedClipboard(text, source = "local") {
+      const value = String(text || "");
+      clip.value = value;
+      localStorage.setItem("nexus_shared_clipboard", value);
+      emit("clipboard", { text: value, source });
+      return value;
+    }
+
+    async function readBrowserClipboardToField() {
+      if (!navigator.clipboard?.readText) {
+        setStatus("Przegladarka nie pozwala czytac schowka PC.", "warn");
+        return;
+      }
+      try {
+        const text = await navigator.clipboard.readText();
+        rememberSharedClipboard(text, "pc-read");
+        setStatus(`Odczytano schowek PC (${text.length} znakow).`, "ok");
+      } catch (error) {
+        setStatus(error.message || "Nie udalo sie odczytac schowka PC.", "warn");
+      }
+    }
+
+    async function copyFieldToBrowserClipboard() {
+      const text = rememberSharedClipboard(clip.value || "", "pc-copy");
+      if (!navigator.clipboard?.writeText) {
+        setStatus("Przegladarka nie pozwala zapisac schowka PC.", "warn");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(`Skopiowano do schowka PC (${text.length} znakow).`, "ok");
+      } catch (error) {
+        setStatus(error.message || "Nie udalo sie skopiowac do schowka PC.", "warn");
+      }
+    }
+
+    async function pasteToVm(text = clip.value || "") {
+      const value = rememberSharedClipboard(text, "vm-paste");
+      if (!value) {
+        setStatus("Schowek jest pusty.", "warn");
+        return;
+      }
+      if (rfb && typeof rfb.clipboardPasteFrom === "function") {
+        rfb.clipboardPasteFrom(value);
+        focusConsole();
+        await sleep(90);
+        try { await sendCtrlV(); } catch (_) {}
+        setStatus(`Wyslano tekst do schowka VM i nacisnieto CTRL+V (${value.length} znakow).`, "ok");
+      } else {
+        await typeTextToVm(value);
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+    function keysymForChar(ch) {
+      const point = ch.codePointAt(0);
+      if (point == null) return 0;
+      return point <= 0xff ? point : (0x01000000 | point);
+    }
+
+    async function pressVmKey(keysym, code = "", holdMs = 18) {
+      rfb.sendKey(keysym, code || null, true);
+      await sleep(holdMs);
+      rfb.sendKey(keysym, code || null, false);
+    }
+
+    async function sendCtrlV() {
+      if (!rfb) return;
+      rfb.sendKey(0xffe3, "ControlLeft", true);
+      await sleep(18);
+      rfb.sendKey(0x0076, "KeyV", true);
+      await sleep(18);
+      rfb.sendKey(0x0076, "KeyV", false);
+      await sleep(18);
+      rfb.sendKey(0xffe3, "ControlLeft", false);
+    }
+
+    async function typeTextToVm(text = clip.value || "") {
+      const value = rememberSharedClipboard(text, "vm-type");
+      if (!rfb) {
+        setStatus("Konsola VNC nie jest jeszcze polaczona.", "warn");
+        return;
+      }
+      if (!value) {
+        setStatus("Brak tekstu do wpisania.", "warn");
+        return;
+      }
+      try {
+        const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        setStatus(`Wpisuje tekst klawiszami do VM (${normalized.length} znakow)...`, "ok");
+        focusConsole();
+        for (const ch of Array.from(normalized)) {
+          if (ch === "\n") await pressVmKey(0xff0d, "Enter", 20);
+          else if (ch === "\t") await pressVmKey(0xff09, "Tab", 20);
+          else await pressVmKey(keysymForChar(ch), "", 16);
+          await sleep(22);
+        }
+        setStatus(`Wpisano tekst klawiszami do VM (${normalized.length} znakow).`, "ok");
+        focusConsole();
+      } catch (error) {
+        setStatus(error.message || "Nie udalo sie wpisac tekstu do VM.", "bad");
+      }
+    }
+
+    async function openIsoModal() {
+      if (!vmId || !token) {
+        setStatus("Brak VM albo tokenu do podmiany ISO.", "warn");
+        return;
+      }
+      isoModal.classList.add("active");
+      isoSelect.innerHTML = "<option>Ladowanie ISO...</option>";
+      isoTarget.innerHTML = "<option value=''>AUTO</option>";
+      isoCurrent.textContent = "Ladowanie aktualnych napedow...";
+      try {
+        const [isoResponse, configResponse] = await Promise.all([
+          api("/api/vms/iso/list"),
+          api(`/api/vms/config?vm_id=${encodeURIComponent(vmId)}`)
+        ]);
+        const isoData = await isoResponse.json().catch(() => ({}));
+        const config = await configResponse.json().catch(() => ({}));
+        if (!isoResponse.ok) throw new Error(readableError(isoData, "Nie udalo sie pobrac ISO Vault"));
+        if (!configResponse.ok) throw new Error(readableError(config, "Nie udalo sie pobrac konfiguracji VM"));
+        const cdromItems = isoData.cdrom_items || (isoData.items || []).filter(item => item.cdrom_attachable || String(item.kind || "").toLowerCase() === "iso");
+        isoSelect.innerHTML = cdromItems.length
+          ? cdromItems.map(item => `<option value="${String(item.path || "").replaceAll('"', '&quot;')}">${String(item.name || item.path)}${item.size_label ? " / " + item.size_label : ""}</option>`).join("")
+          : "<option value=''>Brak plikow .iso w vault</option>";
+        isoTarget.innerHTML = "<option value=''>AUTO: wybierz/utworz CD-ROM</option>" + (config.cdroms || []).map(row => `<option value="${String(row.target || "").replaceAll('"', '&quot;')}">${row.target || "--"} / ${row.source || "pusty"}</option>`).join("");
+        isoCurrent.textContent = "AKTUALNE CD-ROM:\\n" + ((config.cdroms || []).map(row => `${row.target}: ${row.source || "pusty"}`).join("\\n") || "--");
+        setStatus("ISO picker gotowy.", "ok");
+      } catch (error) {
+        isoCurrent.textContent = String(error.message || error);
+        setStatus(error.message || "Nie udalo sie otworzyc ISO picker.", "bad");
+      }
+    }
+
+    async function attachIsoFromModal() {
+      const isoPath = isoSelect.value || "";
+      if (!isoPath) {
+        setStatus("Wybierz plik ISO.", "warn");
+        return;
+      }
+      try {
+        const response = await api("/api/vms/iso/attach", {
+          method: "POST",
+          body: JSON.stringify({
+            vm_id: vmId,
+            iso_path: isoPath,
+            target: isoTarget.value || "",
+            live: document.getElementById("iso-live").checked,
+            config: document.getElementById("iso-config").checked,
+            force: document.getElementById("iso-force").checked
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(readableError(data, `HTTP ${response.status}`));
+        const verify = (data.verify_cdroms || []).map(row => `${row.target}: ${row.source || "pusty"}`).join("\\n") || "--";
+        isoCurrent.textContent = `PODMNIENIONO: ${data.target || "AUTO"}\\n\\nCD-ROM PO AKCJI:\\n${verify}`;
+        setStatus(`ISO podpiete do ${data.target || "AUTO"}.`, "ok");
+      } catch (error) {
+        setStatus(error.message || "Podmiana ISO nie powiodla sie.", "bad");
+        isoCurrent.textContent = String(error.message || error);
+      }
+    }
+
+    async function ejectIsoFromModal() {
+      const target = isoTarget.value || "";
+      if (!target && !confirm(`Wysunac ISO ze wszystkich napedow CD-ROM w VM ${vmId}?`)) return;
+      try {
+        const response = await api("/api/vms/iso/eject", {
+          method: "POST",
+          body: JSON.stringify({
+            vm_id: vmId,
+            target,
+            live: document.getElementById("iso-live").checked,
+            config: document.getElementById("iso-config").checked,
+            force: document.getElementById("iso-force").checked
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(readableError(data, `HTTP ${response.status}`));
+        const verify = (data.verify_cdroms || []).map(row => `${row.target}: ${row.source || "pusty"}`).join("\\n") || "--";
+        isoCurrent.textContent = `WYSUNIETO: ${target || "ALL"}\\n\\nCD-ROM PO AKCJI:\\n${verify}`;
+        setStatus(`ISO wysuniete z ${target || "ALL"}.`, "ok");
+      } catch (error) {
+        setStatus(error.message || "Wysuniecie ISO nie powiodlo sie.", "bad");
+        isoCurrent.textContent = String(error.message || error);
+      }
+    }
+
+    async function repairIsoDriveFromModal() {
+      if (!vmId) return;
+      try {
+        const response = await api("/api/vms/media/repair", {
+          method: "POST",
+          body: JSON.stringify({ vm_id: vmId, live: document.getElementById("iso-live").checked, config: document.getElementById("iso-config").checked })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(readableError(data, `HTTP ${response.status}`));
+        const cdroms = data.media?.cdroms || data.media?.config_cdroms || [];
+        isoCurrent.textContent = `NAPRAWIONO CD-ROM\n\n${cdroms.map(row => `${row.target}: ${row.source || "pusty"}`).join("\n") || "--"}`;
+        setStatus("Tacka CD-ROM sprawdzona/naprawiona.", "ok");
+      } catch (error) {
+        setStatus(error.message || "Naprawa CD-ROM nie powiodla sie.", "bad");
+        isoCurrent.textContent = String(error.message || error);
+      }
+    }
+
+    async function connect() {
+      if (!vmId || !token) {
+        setStatus("Brak VM albo tokenu. Otworz konsole z programu po zalogowaniu.", "bad");
+        return;
+      }
+      try {
+        if (rfb) {
+          try { rfb.disconnect(); } catch (_) {}
+          rfb = null;
+        }
+        setStatus("Pobieram krotkotrwala sesje noVNC...");
+        screen.innerHTML = "<div class='placeholder'><strong>LADOWANIE</strong><br>Pobieram endpoint VNC...</div>";
+        const response = await api(`/api/vms/console?vm_id=${encodeURIComponent(vmId)}&backend=${encodeURIComponent(backend)}`);
+        const info = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(info.detail || `HTTP ${response.status}`);
+        const inputRepair = info.input_repair || null;
+        const { default: RFB } = await import("https://esm.sh/@novnc/novnc@1.5.0/lib/rfb.js");
+        screen.innerHTML = "";
+        rfbTarget = null;
+        const target = ensureRfbTarget();
+        ensureScaleBadge();
+        applyRfbScale();
+        rfb = new RFB(target, wsUrl(info.ws_path), {});
+        applyRfbScale();
+        rfb.viewOnly = viewOnly;
+        rfb.focusOnClick = true;
+        bindViewportResize();
+        rfb.addEventListener("connect", () => {
+          const warnings = Array.isArray(inputRepair?.warnings) ? inputRepair.warnings.filter(Boolean) : [];
+          const inputNote = warnings.length
+            ? ` Input: ostrzezenie - ${warnings[0]}`
+            : Number(inputRepair?.added || 0) > 0
+              ? ` Input: dodano ${inputRepair.added} urzadzen.`
+              : "";
+          setStatus(`Polaczono. Sesja wazna ok. ${info.session_ttl_seconds || 600}s.${inputNote}`, warnings.length ? "bad" : "ok");
+          queueViewportRecalc(180);
+          queueViewportRecalc(650);
+          focusConsole();
+        });
+        rfb.addEventListener("disconnect", event => {
+          setStatus(event.detail && event.detail.clean ? "Rozlaczono." : "Rozlaczono lub VNC odrzucilo polaczenie.", event.detail && event.detail.clean ? "" : "bad");
+        });
+        rfb.addEventListener("credentialsrequired", () => {
+          const password = prompt("VNC wymaga hasla:");
+          rfb.sendCredentials({ password: password || "" });
+        });
+        rfb.addEventListener("clipboard", event => {
+          const text = event.detail?.text || "";
+          if (text) {
+            rememberSharedClipboard(text, "vm-clipboard");
+            if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => {});
+            setStatus(`Odebrano schowek z VM (${text.length} znakow).`, "ok");
+          }
+        });
+      } catch (error) {
+        screen.innerHTML = `<div class='placeholder'><strong>BLAD KONSOLI</strong><br>${String(error.message || error)}</div>`;
+        setStatus(String(error.message || error), "bad");
+      }
+    }
+
+    document.getElementById("reconnect").addEventListener("click", connect);
+    document.getElementById("disconnect").addEventListener("click", () => {
+      if (rfb) rfb.disconnect();
+    });
+    document.getElementById("cad").addEventListener("click", () => {
+      sendCtrlAltDel();
+    });
+    document.getElementById("fit").addEventListener("click", event => {
+      setScaleMode(scaleMode === "fit" ? "native" : "fit");
+    });
+    customButton.addEventListener("click", () => setCustomSize());
+    centerButton.addEventListener("click", () => {
+      centerStage(true);
+      setStatus("Wycentrowano obraz VM w oknie podgladu.", "ok");
+    });
+    [sizeW, sizeH].forEach(input => {
+      input.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          setCustomSize();
+        }
+      });
+    });
+    fullButton.addEventListener("click", async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await screen.requestFullscreen();
+        updateFullscreenButton();
+      } catch (error) {
+        setStatus(error.message || "Fullscreen niedostepny.", "warn");
+      }
+    });
+    document.getElementById("view").addEventListener("click", event => {
+      setInputMode(viewOnly);
+    });
+    document.getElementById("paste").addEventListener("click", () => {
+      pasteToVm();
+    });
+    document.getElementById("type-text").addEventListener("click", () => {
+      typeTextToVm();
+    });
+    document.getElementById("clip-read").addEventListener("click", () => {
+      readBrowserClipboardToField();
+    });
+    document.getElementById("clip-copy").addEventListener("click", () => {
+      copyFieldToBrowserClipboard();
+    });
+    clip.addEventListener("input", () => {
+      rememberSharedClipboard(clip.value || "", "field");
+    });
+    screen.addEventListener("click", () => {
+      focusConsole();
+    });
+    screen.addEventListener("pointerdown", event => {
+      focusConsole();
+      if (event.pointerId !== undefined && typeof screen.setPointerCapture === "function") {
+        try { screen.setPointerCapture(event.pointerId); } catch (_) {}
+      }
+    }, { capture: true });
+    if (resetMouseButton) resetMouseButton.addEventListener("click", resetMouseCapture);
+    document.getElementById("iso-open").addEventListener("click", openIsoModal);
+    document.getElementById("iso-close").addEventListener("click", () => isoModal.classList.remove("active"));
+    document.getElementById("iso-attach").addEventListener("click", attachIsoFromModal);
+    document.getElementById("iso-eject").addEventListener("click", ejectIsoFromModal);
+    document.getElementById("iso-repair").addEventListener("click", repairIsoDriveFromModal);
+    isoModal.addEventListener("click", event => {
+      if (event.target === isoModal) isoModal.classList.remove("active");
+    });
+    window.addEventListener("message", event => {
+      if (event.origin !== location.origin) return;
+      const data = event.data || {};
+      if (data.source !== "nexus-aero" && data.source !== "nexus-manager") return;
+      if (data.type !== "command") return;
+      if (data.command === "connect" || data.command === "reconnect") return connect();
+      if (data.command === "disconnect") return rfb && rfb.disconnect();
+      if (data.command === "ctrlAltDel") return sendCtrlAltDel();
+      if (data.command === "paste") return pasteToVm(String(data.text || ""));
+      if (data.command === "typeText") return typeTextToVm(String(data.text || clip.value || ""));
+      if (data.command === "readClipboard") return readBrowserClipboardToField();
+      if (data.command === "copyClipboard") return copyFieldToBrowserClipboard();
+      if (data.command === "setClipboard") return rememberSharedClipboard(data.text || "", data.source || "parent");
+      if (data.command === "openIso") return openIsoModal();
+      if (data.command === "setFit") return setFitMode(data.active !== false);
+      if (data.command === "toggleFit") return setScaleMode(scaleMode === "fit" ? "native" : "fit");
+      if (data.command === "setScaleMode") return setScaleMode(data.mode || "fit");
+      if (data.command === "setCustomSize") return setCustomSize(data.width, data.height);
+      if (data.command === "center") return centerStage(true);
+      if (data.command === "resetView") {
+        setScaleMode("fit");
+        queueViewportRecalc(40);
+        window.setTimeout(() => centerStage(true), 120);
+        return;
+      }
+      if (data.command === "fullscreen") {
+        return (async () => {
+          try {
+            if (document.fullscreenElement) await document.exitFullscreen();
+            else await screen.requestFullscreen();
+            updateFullscreenButton();
+          } catch (error) {
+            setStatus(error.message || "Fullscreen niedostepny.", "warn");
+          }
+        })();
+      }
+      if (data.command === "setInput") return setInputMode(data.active !== false);
+      if (data.command === "toggleInput") return setInputMode(viewOnly);
+      if (data.command === "focus") return focusConsole();
+      if (data.command === "resetMouse") return resetMouseCapture();
+    });
+
+    function updateFullscreenButton() {
+      fullButton.textContent = document.fullscreenElement ? "Exit Full" : "Full";
+      queueViewportRecalc(180);
+    }
+
+    const query = new URLSearchParams(location.search);
+    const embedded = query.get("embed") === "1";
+    document.body.classList.toggle("embedded", embedded);
+    ensureScaleBadge();
+    applyRfbScale();
+    bindViewportResize();
+    emit("ready", { text: "Ramka konsoli gotowa" });
+    connect();
+    if (embedded) {
+      window.setTimeout(() => {
+        setScaleMode("fit");
+        centerStage(true);
+      }, 280);
+    }
+  </script>
+</body>
+</html>

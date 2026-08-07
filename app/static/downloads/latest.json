@@ -1,0 +1,17 @@
+{
+    "version":  "0.2.11",
+    "installer_url":  "/static/downloads/NEXUS-Capsule-Manager-Setup.exe?v=0.2.11",
+    "msi_url":  "/static/downloads/NEXUS-Capsule-Manager.msi?v=0.2.11",
+    "sha256":  "10A4AAB05254B70C54D8D9CE01E5B77E11AB907484F03360D31703154A60F733",
+    "installer_sha256":  "10A4AAB05254B70C54D8D9CE01E5B77E11AB907484F03360D31703154A60F733",
+    "msi_sha256":  "A65762550371F1D74342EE3A7413F266481E0A4FE746E5DCF20439D6B9CD667C",
+    "published_at":  "2026-07-20T20:49:03+02:00",
+    "notes":  [
+                  "WOW Mission Control: natywna plansza Phase 2, Zero-Trust, Edge, Neural, billing i Cloud Drive.",
+                  "Nowa grupa PLATFORM / AUTONOMY w Windows Managerze z modulami Phase 2, Tenants, FWaaS, Nano, Edge, Neural, Retention i Branding.",
+                  "Native Arsenal dostal pola Tenant i Confirm oraz przyciski GET/POST opisane metoda API.",
+                  "Szybkie akcje uzbrojone w Zero-Trust plan/apply, attach VM, Thin Storage, NXC policy/tick, retention i endpointy serverless.",
+                  "Interfejs dostal zywy mesh, wersje w hero, szklane kafle enterprise i lepsze przelaczanie modulow.",
+                  "Auto-update: EXE/MSI rozdzielone i sprawdzane SHA-256 przed instalacja."
+              ]
+}
