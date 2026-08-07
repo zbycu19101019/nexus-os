@@ -1,0 +1,25 @@
+# Wpółpraca z NEXUS OS (Contributing)
+
+Dziękuję za poświęcenie czasu na wkład w rozwój projektu! NEXUS OS został stworzony z myślą o wydajności, bezpieczeństwie i niskim opóźnieniu w wirtualizacji na gołym żelazie (bare-metal).
+
+## Jak możesz pomóc?
+
+### Zgłaszanie błędów (Bugs)
+* Upewnij się, że błąd nie został wcześniej zgłoszony w sekcji GitHub Issues.
+* Jeśli nie znalazłeś otwartego zgłoszenia dotyczącego problemu, otwórz nowe. Podaj jasny tytuł, opis, odpowiednie informacje oraz fragmenty kodu lub logi (np. z `nexusos-doctor.sh`), które pomogą zidentyfikować problem.
+
+### Proponowanie ulepszeń
+* Otwórz zgłoszenie (Issue) z propozycją nowej funkcji.
+* Wyjaśnij wyraźnie, na czym polega ulepszenie i dlaczego przydałoby się w systemie typu appliance lub stosie zarządzania KVM.
+
+### Pull Requests (PR)
+1. Zrób fork repozytorium i stwórz własną gałąź (branch) z gałęzi `main`.
+2. Przetestuj swoje zmiany lokalnie (np. poprzez testy budowania ISO / maszynę wirtualną).
+3. Upewnij się, że kod jest zgodny z architekturą projektu (backend FastAPI, minimalistyczny Debian, środowisko kioskowe Wayland/Cage).
+4. Otwórz Pull Request z jasnym opisem wprowadzonych zmian.
+
+## Wytyczne dotyczące stylu kodu
+* **Python (Backend):** Ograniczaj zależności do minimum, przestrzegaj standardów PEP 8 i dbaj o to, aby endpointy asynchroniczne poprawnie obsługiwały błędy.
+* **Skrypty powłoki (`.sh`):** Tam gdzie to możliwe, używaj trybu rygorystycznego (`set -euo pipefail`) i upewnij się, że uprawnienia roota są obsługiwane bezpiecznie.
+
+Dziękujemy za pomoc w ulepszaniu NEXUS OS!
